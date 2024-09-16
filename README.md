@@ -3,7 +3,7 @@
 ### Topic: MeoWorld: A Simple Cat-Themed Blogging Platform
 
 ## Application Suitability
-Cats are o popular topic online, which makes this blog appealing to many users. 
+Cats are a popular topic online, which makes this blog appealing to many users. 
 This blog allows users to interact with the content through comments and likes, helping the community of cat lovers to grow.
 - Necessity of Distributed Systems
 1. Scalability, as the number of users increses, the number of posts will grow, so a distributed system will help manage this flow.
@@ -28,7 +28,10 @@ will remain stable, in case one of the parts encounters issues.
 - Services will be written in C# with .NET Framework and use gRPC for running the services defined in proto files.
 - The gateway will be written in GO;
 - Gateway will expose to the external users a RESTful API, based on proto files and with the internal services will communicate via gRPC and protobuf, as this protocol is faster and smaller in size than json.
-- The data will be stored in a small dabase, like sqlite.
+- The data will be stored in a small database, like SQLite.
+- Status Endpoint. Health status will be provided using built-in gRPC functionalities. As an example: a service will respond with Serving when it can accept new requests, and NotServing - otherwise.
+- Timeout. The timeout will be set via gRPC, using GRPC built-in call options.
+- Current task limit. gRPC functional will be used to control the number of connexions.
 ## Data Management (Database + Endpoints)
 Below, in the proto files, the services, their endpoints, and respective requests, responses, and data structures are defined. The service will provide endpoints for managing posts in a CRUD style. Additionally, the WebSocket implementation will follow this structure:
 
