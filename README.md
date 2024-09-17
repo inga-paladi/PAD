@@ -37,7 +37,7 @@ will remain stable, in case one of the parts encounters issues.
 - Unit test. For the post service I will do the unit tests in C#, to test if the requests are working correctly.
 - Health Monitoring and Alerts. Using gRPC we can track the number of incoming requests and adjust the service status based on traffic load. gRPC health check service using the grpc.health.v1.Health plugin
 - In gRPC, load balancing with weighted round robin ensures that requests are directed only to services that are available and capable of handling them, as opposed to sending requests evenly across all services. This approach improves the efficiency of request distribution by prioritizing less loaded or more capable instances.
-- The cache will also collect data from the post requests, because they are not that often changed.
+- The cache will also collect data from the get requests, because they are not that often changed.
 ## Data Management (Database + Endpoints)
 Below, in the proto files, the services, their endpoints, and respective requests, responses, and data structures are defined. The service will provide endpoints for managing posts in a CRUD style. Additionally, the WebSocket implementation will follow this structure:
 
