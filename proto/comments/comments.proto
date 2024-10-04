@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+option go_package = "./meoworld-gateway";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+package meoworld;
+
+service Comments {
+  rpc AddComment( AddCommentRequest ) returns ( AddCommentResponse ) {
+    option (google.api.http) = {
+      post: "/v1/comment"
+      body: "*"
+    };
+  }
+  rpc ListComments( ListCommentsRequest ) returns ( ListCommentsResponse ) {
+    option (google.api.http) = {
+      get: "/v1/comment/{post_guid}"
+    };
+  }
+  rpc EditComment( EditCommentRequest ) returns ( EditCommentResponse ) {
+    option (google.api.http) = {
+      post: "/v1/comment/{guid}/edit"
+      body: "*"
+    };
+  }
+  rpc DeleteComment( DeleteCommentRequest ) returns ( DeleteCommentResponse ) {
+    option (google.api.http) = {
+      post: "/v1/comment/{guid}/delete"
+      body: "*"
+    };
+  }
+}
+
+message AddCommentRequest {
+  string post_guid = 1;
+  string content = 2;
+  string reply_guid = 3;
+}
+message AddCommentResponse {
+  string guid = 1;
+}
+
+message ListCommentsRequest {
+  string post_guid = 1;
+}
+message ListCommentsResponse {
+  repeated Comment comments = 1;
+}
+
+message EditCommentRequest {
+  string guid = 1;
+  string content = 2;
+}
+message EditCommentResponse {
+  // Empty
+}
+
+message DeleteCommentRequest {
+  string guid = 1;
+}
+message DeleteCommentResponse {
+  // Empty
+}
+
+// Types
+message Comment {
+  string guid = 1;
+  string post_guid = 2;
+  // The comment guid to which it responds
+  string reply_guid = 3;
+  uint64 owner_id = 4;
+  string content = 5;
+  google.protobuf.Timestamp creation_time = 6;
+  google.protobuf.Timestamp last_edited_time = 7;
+}
