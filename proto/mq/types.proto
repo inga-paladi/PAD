@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option go_package = "./meoworld-gateway";
+
+package meoworld.mq;
+
+enum EventType {
+    EVENT_TYPE_UNSPECIFIED = 0;
+    EVENT_TYPE_SERVICE_STARTED = 1;
+}
+
+message ServiceStarted {
+    string service_name = 1;
+    string server_address = 2;
+    uint32 server_port = 3;
+}

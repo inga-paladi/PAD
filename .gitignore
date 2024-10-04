@@ -1,0 +1,5 @@
+gen/
+*.lock
+*.sum
+**/bin/
+**/obj/
