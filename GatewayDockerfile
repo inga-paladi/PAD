@@ -1,0 +1,30 @@
+FROM bufbuild/buf as proto-generator
+
+WORKDIR /usr/src/app
+
+COPY proto/ proto/
+COPY buf.gen.yaml buf.yaml ./
+
+RUN buf dep update
+RUN buf generate
+
+FROM golang
+
+WORKDIR /usr/src/app
+
+COPY --from=proto-generator /usr/src/app/gen ./gen
+COPY go.mod \
+     main.go \
+     resolver.go \
+     service_registry.go \
+     cache_handler.go \
+     circuit_breaker.go \
+     ./
+
+# Download the dependencies
+RUN go mod tidy
+RUN go build
+
+EXPOSE 8080
+
+ENTRYPOINT [ "/usr/src/app/meoworld-gateway" ]

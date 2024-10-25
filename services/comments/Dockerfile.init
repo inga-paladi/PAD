@@ -1,0 +1,21 @@
+# Run this file with context dir as the dir which contains "services/comments"
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-sdk
+
+WORKDIR /usr/src
+
+COPY proto/ proto/
+COPY services/shared services/shared
+COPY services/comments services/comments
+
+WORKDIR /usr/src/services/comments
+
+RUN dotnet restore
+RUN dotnet tool install --global dotnet-ef
+ENV PATH="${PATH}:/root/.dotnet/tools"
+
+RUN dotnet build
+RUN dotnet ef migrations add Initialization --no-build
+RUN dotnet ef migrations bundle --no-build
+RUN mkdir -p /database
+RUN ./efbundle --connection "Data Source=/database/comments.db"

@@ -1,41 +1,47 @@
-using System.Reflection;
-using Google.Protobuf;
-using Google.Protobuf.Reflection;
-using Meoworld.Mq;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
+using System.Net;
+using comments;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using comments.Services;
-using StackExchange.Redis;
 
-NotifyAboutStart();
+var serviceBroadcaster = new ServiceBroadcaster("comments", new DnsEndPoint(GetListeningAddress(), GetListeningPort()));
+serviceBroadcaster.Start();
+
 BuildAndRunServer();
-
-void NotifyAboutStart()
-{
-    var serviceStartedEvent = EventType.ServiceStarted;
-    var serviceStartedAttribute = serviceStartedEvent.GetType().GetMember(serviceStartedEvent.ToString()).Single().GetCustomAttribute<OriginalNameAttribute>();
-    var notificationChannel = new RedisChannel(serviceStartedAttribute?.Name.ToString() ?? "", RedisChannel.PatternMode.Literal);
-
-    var redis = ConnectionMultiplexer.Connect("localhost:6379");
-    var redisSubscriber = redis.GetSubscriber();
-
-    var serviceStartedMessage = new Meoworld.Mq.ServiceStarted
-    {
-        ServiceName = "comments",
-        ServerAddress = "localhost",
-        ServerPort = 5002
-    };
-    redisSubscriber.Publish(notificationChannel, Convert.ToBase64String(serviceStartedMessage.ToByteArray()));
-}
 
 void BuildAndRunServer()
 {
     var builder = WebApplication.CreateBuilder(args);
     builder.WebHost.ConfigureKestrel(
-        options => options.ListenLocalhost(5002,
-            listenOptions => listenOptions.Protocols = HttpProtocols.Http2)
+        options => options.Listen(System.Net.IPAddress.Any, GetListeningPort())
     );
-    builder.Services.AddGrpc();
+    builder.Services.AddGrpc().AddServiceOptions<CommentsService>(options =>
+    {
+        options.Interceptors.Add<ServiceLoggerInterceptor>();
+        options.Interceptors.Add<ConcurrencyLimitingInterceptor>();
+    });
+    builder.Services.AddSingleton(new ConcurrencyLimitingInterceptor(5));
+    builder.Services.AddGrpcReflection();
+    builder.Services.AddGrpcHealthChecks()
+        .AddCheck("Check", () => new HealthCheckResult(HealthStatusManager.GetInstance().GetHealthStatus()));
+
     var app = builder.Build();
     app.MapGrpcService<CommentsService>();
+    app.MapGrpcHealthChecksService();
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapGrpcReflectionService();
+    }
+
+    Console.WriteLine("Running on machine: {0}", System.Environment.MachineName);
     app.Run();
+}
+
+string GetListeningAddress()
+{
+    return System.Environment.MachineName;
+}
+
+int GetListeningPort()
+{
+    return 5001;
 }

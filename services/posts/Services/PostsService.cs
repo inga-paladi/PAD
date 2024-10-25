@@ -9,14 +9,14 @@ namespace posts.Services
 {
     public class PostsService : Blog.BlogBase
     {
-        private readonly PostsDbContext _dbContext;
+        protected  PostsDbContext _dbContext;
 
         public PostsService()
         {
             _dbContext = new PostsDbContext();
         }
 
-        public override async Task<PublishPostResponse> PublishPost(PublishPostRequest request, ServerCallContext context)
+        public override Task<PublishPostResponse> PublishPost(PublishPostRequest request, ServerCallContext context)
         {
             var post = new Post
             {
@@ -28,9 +28,9 @@ namespace posts.Services
             };
 
             _dbContext.Posts.Add(post);
-            await _dbContext.SaveChangesAsync();
+            _dbContext.SaveChanges();
 
-            return new PublishPostResponse { Guid = post.Id.ToString() };
+            return Task.FromResult(new PublishPostResponse { Guid = post.Id.ToString() });
         }
 
         public override Task<EditPostResponse> EditPost(EditPostRequest request, ServerCallContext context)
@@ -62,14 +62,17 @@ namespace posts.Services
             }
 
             _dbContext.Posts.Remove(post);
-            _dbContext.SaveChangesAsync();
+            _dbContext.SaveChanges();
 
             return Task.FromResult(new DeletePostResponse());
         }
 
         public override Task<ListPostsResponse> ListPosts(ListPostsRequest request, ServerCallContext context)
         {
-            var posts = _dbContext.Posts.ToList(); 
+            var posts = _dbContext.Posts
+                .OrderByDescending(p => p.CreationTime)
+                .Take((int)(request.Limit == 0 ? 10 : request.Limit))
+                .ToList(); 
 
             var response = new ListPostsResponse();
             response.Posts.AddRange(posts.Select(p => new BlogPost
@@ -78,8 +81,7 @@ namespace posts.Services
                 Title = p.Title,
                 Content = p.Content,
                 CreationTime = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTime(p.CreationTime.ToUniversalTime()),
-                LastEditedTime = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTime(p.LastEditedTime.Value.ToUniversalTime())
-            
+                LastEditedTime = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTime(p.LastEditedTime?.ToUniversalTime() ?? new DateTime(0))
             }));
 
             return Task.FromResult(response); 

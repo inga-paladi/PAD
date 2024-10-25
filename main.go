@@ -17,19 +17,24 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/resolver"
+	"google.golang.org/grpc/status"
 )
 
 const (
-	gatewayAddress string = ":8080"
+	gatewayAddress         string        = ":8080"
+	blogServiceTimeout     time.Duration = time.Second
+	commentsServiceTimeout time.Duration = time.Second
 )
 
 var serviceRegistry ServiceRegistry
 var cacheHandler CacheHandler
+var circuitBreaker CircuitBreaker
 
 func init() {
 	serviceRegistry.Start()
 	resolver.Register(&GrpcResolveBuilder{})
 	cacheHandler.Init()
+	circuitBreaker = NewCircuitBreaker()
 }
 
 func clean() {
@@ -47,16 +52,17 @@ func RunServer() {
 
 	blogOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithChainUnaryInterceptor(timeout.UnaryClientInterceptor(500*time.Millisecond), blogCacheUnaryInterceptor),
-		grpc.WithDefaultServiceConfig("{  load_balancing_config: { round_robin: {} }}"),
+		grpc.WithChainUnaryInterceptor(blogCacheUnaryInterceptor, circuitBreakerInterceptor, timeout.UnaryClientInterceptor(blogServiceTimeout)),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"round_robin":{}}]}`),
 	}
 	blogpb.RegisterBlogHandlerFromEndpoint(context.Background(), gatewayMux, fmt.Sprintf("%s:///%s", resolverScheme, blogServiceName), blogOpts)
 
 	commentOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithChainUnaryInterceptor(timeout.UnaryClientInterceptor(500 * time.Millisecond)),
+		grpc.WithChainUnaryInterceptor(circuitBreakerInterceptor, timeout.UnaryClientInterceptor(commentsServiceTimeout)),
+		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"round_robin":{}}]}`),
 	}
-	commentspb.RegisterCommentsHandlerFromEndpoint(context.Background(), gatewayMux, ":5002", commentOpts)
+	commentspb.RegisterCommentsHandlerFromEndpoint(context.Background(), gatewayMux, fmt.Sprintf("%s:///%s", resolverScheme, commentsServiceName), commentOpts)
 
 	log.Printf("Serving http on %v", gatewayAddress)
 	http.ListenAndServe(gatewayAddress, wsproxy.WebsocketProxy(gatewayMux))
@@ -88,4 +94,16 @@ func blogCacheUnaryInterceptor(ctx context.Context, method string, req, reply in
 	}
 
 	return invoker(ctx, method, req, reply, cc, opts...)
+}
+
+func circuitBreakerInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	invokerResult := invoker(ctx, method, req, reply, cc, opts...)
+	if invokerResult != nil {
+		if grpcStatus, ok := status.FromError(invokerResult); ok {
+			if IsRelevantErrorCode(grpcStatus.Code()) {
+				go circuitBreaker.RegisterError(cc)
+			}
+		}
+	}
+	return invokerResult
 }

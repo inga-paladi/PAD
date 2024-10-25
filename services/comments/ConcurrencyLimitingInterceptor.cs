@@ -1,9 +1,8 @@
 using Grpc.Core;
 using Grpc.Core.Interceptors;
-using Grpc.Health.V1;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace posts;
+namespace comments;
 
 public class ConcurrencyLimitingInterceptor(int maxConcurrentCalls) : Interceptor
 {

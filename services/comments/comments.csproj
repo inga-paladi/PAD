@@ -11,32 +11,36 @@
     <PackageReference Include="Google.Api.CommonProtos" Version="2.15.0" GeneratePathProperty="true" />
     <PackageReference Include="Google.Protobuf" Version="3.28.1" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.57.0" />
+    <PackageReference Include="Grpc.AspNetCore.HealthChecks" Version="2.66.0" />
+    <PackageReference Include="Grpc.AspNetCore.Server.Reflection" Version="2.66.0" />
     <PackageReference Include="Grpc.Net.Client" Version="2.65.0" />
     <PackageReference Include="Grpc.Tools" Version="2.66.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.8">
-      <PrivateAssets>all</PrivateAssets>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.10" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-    </PackageReference>
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.8" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.8">
       <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="StackExchange.Redis" Version="2.8.16" />
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf ProtoRoot="proto" Include="proto/**/*.proto" GrpcServices="Server" AdditionalImportDirs="$(PkgGoogle_Api_CommonProtos)/content/protos" />
+    <Protobuf ProtoRoot="proto" Include="proto/**/*.proto" GrpcServices="Server" AdditionalImportDirs="$(PkgGoogle_Api_CommonProtos)/content/protos"/>
     <Protobuf Include="..\..\proto\comments\comments.proto">
       <Link>Protos/comments/comments.proto</Link>
     </Protobuf>
     <Protobuf Include="..\..\proto\mq\types.proto">
       <Link>Protos/mq/types.proto</Link>
     </Protobuf>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\shared\ServiceBroadcaster.cs">
+      <Link>ServiceBroadcaster.cs</Link>
+    </Compile>
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,34 @@
+Post
+PublishPost (post: /v1/blog/post)
+{
+    "content": "",
+    "title": ""
+}
+
+EditPost (post: /v1/blog/post/{guid}/edit)
+{
+    "content": "",
+    "title": ""
+}
+
+DeletePost (post: /v1/blog/post/{guid}/delete) {}
+
+ListPosts (get: /v1/blog/post) {}
+
+GetPost (get: /v1/blog/post/{guid}) {}
+
+Comments
+AddComment (post: /v1/comment)
+{
+    "content": "",
+    "post_guid": ""
+}
+
+ListComments (get: /v1/comment/{post_guid}) {}
+
+EditComment (post: /v1/comment/{guid}/edit)
+{
+    "content": ""
+}
+
+DeleteComment (post: /v1/comment/{guid}/delete) {}

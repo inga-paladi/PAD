@@ -1,0 +1,53 @@
+services:
+  redis:
+    image: redis:latest
+    hostname: meoworld-redis
+
+  gateway:
+    build:
+      context: ./
+      dockerfile: GatewayDockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_ADDRESS=meoworld-redis
+    depends_on:
+      - redis
+
+  posts-service:
+    build:
+      context: ./
+      dockerfile: ./services/posts/Dockerfile
+    environment:
+      - REDIS_ADDRESS=meoworld-redis
+      - DB_PATH=/database/
+    volumes:
+      - posts-db:/database
+    deploy:
+      mode: replicated
+      replicas: 3
+    depends_on:
+      - redis
+      - gateway
+
+  comments-service:
+    build:
+      context: ./
+      dockerfile: ./services/comments/Dockerfile
+    environment:
+      - REDIS_ADDRESS=meoworld-redis
+      - DB_PATH=/database/
+    volumes:
+      - comments-db:/database
+    deploy:
+      mode: replicated
+      replicas: 3
+    depends_on:
+      - redis
+      - gateway
+
+volumes:
+  posts-db:
+    external: true
+  comments-db:
+    external: true

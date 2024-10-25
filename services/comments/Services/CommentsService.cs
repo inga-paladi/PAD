@@ -1,95 +1,81 @@
+using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Grpc.Client;
 using Meoworld;
-using Microsoft.EntityFrameworkCore;
 
 namespace comments.Services
 {
     public class CommentsService : Comments.CommentsBase
     {
-        private readonly CommentsDbContext _commentsDbContext;
-        private readonly Posts.PostsClient _postClient;
+        private readonly CommentsDbContext _commentsDbContext = new();
 
-        public CommentsService(CommentsDbContext commentsDbContext, PostsDbContext postsDbContext)
+        public override Task<AddCommentResponse> AddComment(AddCommentRequest request, ServerCallContext context)
         {
-            _commentsDbContext = commentsDbContext;
-            _postsDbContext = postsDbContext; // Optional: If you need to check post existence
-        }
-
-        public override async Task<AddCommentResponse> AddComment(AddCommentRequest request, ServerCallContext context)
-        {
-            // Optionally check if the post exists
-            var postExists = await _postsDbContext.Posts.AnyAsync(p => p.Guid == request.PostGuid);
-            if (!postExists)
-            {
-                throw new RpcException(new Status(StatusCode.NotFound, "Post not found"));
-            }
-
             var comment = new Comment
             {
-                PostGuid = request.PostGuid,
+                PostGuid = Guid.Parse(request.PostGuid),
                 Content = request.Content,
-                ReplyGuid = request.ReplyGuid,
-                CreationTime = Timestamp.FromDateTime(DateTime.UtcNow),
-                LastEditedTime = Timestamp.FromDateTime(DateTime.UtcNow)
+                OwnerId = 1,
+                CreationTime = DateTime.UtcNow,
+                LastEditedTime = DateTime.UtcNow
             };
+            if (request.ReplyGuid != "")
+                comment.ReplyGuid = Guid.Parse(request.ReplyGuid);
 
             _commentsDbContext.Comments.Add(comment);
-            await _commentsDbContext.SaveChangesAsync();
+            _commentsDbContext.SaveChanges();
 
-            return new AddCommentResponse { Guid = comment.Guid };
+            return Task.FromResult(new AddCommentResponse { Guid = comment.Id.ToString() });
         }
 
-        public override async Task<ListCommentsResponse> ListComments(ListCommentsRequest request, ServerCallContext context)
+        public override Task<ListCommentsResponse> ListComments(ListCommentsRequest request, ServerCallContext context)
         {
-            var comments = await _commentsDbContext.Comments
-                .Where(c => c.PostGuid == request.PostGuid)
-                .ToListAsync();
+            var comments = _commentsDbContext.Comments
+                .Where(comment => comment.PostGuid == Guid.Parse(request.PostGuid))
+                .ToList();
 
             var response = new ListCommentsResponse();
-            response.Comments.AddRange(comments.Select(c => new Comment
+            response.Comments.AddRange(comments.Select(comment => new Meoworld.Comment
             {
-                Guid = c.Guid,
-                PostGuid = c.PostGuid,
-                ReplyGuid = c.ReplyGuid,
-                OwnerId = c.OwnerId,
-                Content = c.Content,
-                CreationTime = c.CreationTime,
-                LastEditedTime = c.LastEditedTime
+                Guid = comment.Id.ToString(),
+                PostGuid = comment.PostGuid.ToString(),
+                ReplyGuid = comment.ReplyGuid.ToString(),
+                OwnerId = comment.OwnerId,
+                Content = comment.Content,
+                CreationTime = Timestamp.FromDateTime(comment.CreationTime.ToUniversalTime()),
+                LastEditedTime = Timestamp.FromDateTime(comment.LastEditedTime?.ToUniversalTime() ?? new DateTime(0))
             }));
 
-            return response;
+            return Task.FromResult(response);
         }
 
-        public override async Task<EditCommentResponse> EditComment(EditCommentRequest request, ServerCallContext context)
+        public override Task<EditCommentResponse> EditComment(EditCommentRequest request, ServerCallContext context)
         {
-            var comment = await _commentsDbContext.Comments.FindAsync(request.Guid);
+            var comment = _commentsDbContext.Comments.Find(Guid.Parse(request.Guid));
             if (comment == null)
             {
                 throw new RpcException(new Status(StatusCode.NotFound, "Comment not found"));
             }
 
             comment.Content = request.Content;
-            comment.LastEditedTime = Timestamp.FromDateTime(DateTime.UtcNow);
 
             _commentsDbContext.Comments.Update(comment);
-            await _commentsDbContext.SaveChangesAsync();
+            _commentsDbContext.SaveChanges();
 
-            return new EditCommentResponse();
+            return Task.FromResult(new EditCommentResponse());
         }
 
-        public override async Task<DeleteCommentResponse> DeleteComment(DeleteCommentRequest request, ServerCallContext context)
+        public override Task<DeleteCommentResponse> DeleteComment(DeleteCommentRequest request, ServerCallContext context)
         {
-            var comment = await _commentsDbContext.Comments.FindAsync(request.Guid);
+            var comment = _commentsDbContext.Comments.Find(Guid.Parse(request.Guid));
             if (comment == null)
             {
                 throw new RpcException(new Status(StatusCode.NotFound, "Comment not found"));
             }
 
             _commentsDbContext.Comments.Remove(comment);
-            await _commentsDbContext.SaveChangesAsync();
+            _commentsDbContext.SaveChanges();
 
-            return new DeleteCommentResponse();
+            return Task.FromResult(new DeleteCommentResponse());
         }
     }
 }
