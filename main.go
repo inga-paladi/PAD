@@ -97,13 +97,21 @@ func blogCacheUnaryInterceptor(ctx context.Context, method string, req, reply in
 }
 
 func circuitBreakerInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	invokerResult := invoker(ctx, method, req, reply, cc, opts...)
-	if invokerResult != nil {
+	var invokerResult error
+	for i := 0; i < 3; i++ {
+		invokerResult = invoker(ctx, method, req, reply, cc, opts...)
+		if invokerResult == nil {
+			return nil
+		}
+
 		if grpcStatus, ok := status.FromError(invokerResult); ok {
 			if IsRelevantErrorCode(grpcStatus.Code()) {
 				go circuitBreaker.RegisterError(cc)
+			} else {
+				return invokerResult
 			}
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	return invokerResult
 }
