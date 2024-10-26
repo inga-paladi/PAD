@@ -12,12 +12,16 @@ namespace posts.Services
         
         protected override void OnConfiguring(DbContextOptionsBuilder options)
         {
+            // Only configure if options are not provided
+            if (!options.IsConfigured)
+            {
             var dbDir = Environment.GetEnvironmentVariable("DB_PATH");
             var dbPath = dbDir == null
                 ? System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "posts.db")
                 : System.IO.Path.Combine(dbDir, "posts.db");
             options.UseSqlite($"Data Source={dbPath}");
         }
+    }
     }
 
     public class Post
