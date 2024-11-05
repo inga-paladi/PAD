@@ -359,3 +359,5 @@ volumes:
   comments-db:
     external: true
 ```
+
+For testing use  `postComments_collection.postman_collection` file.
