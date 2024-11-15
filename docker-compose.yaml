@@ -1,7 +1,16 @@
+volumes:
+  posts-db:
+    external: true
+  comments-db:
+    external: true
+  meoworld-logs:
+    external: true
+
 services:
-  redis:
+  message-broker:
     image: redis:latest
-    hostname: meoworld-redis
+    hostname: meoworld-message-broker
+    restart: on-failure:3
 
   gateway:
     build:
@@ -10,44 +19,72 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - REDIS_ADDRESS=meoworld-redis
+      - MESSAGE_BROKER_ADDRESS=meoworld-message-broker
+      - CACHE_SERVERS=cache-storage-01;cache-storage-02
     depends_on:
-      - redis
+      - message-broker
+    restart: on-failure:3
+    volumes:
+      - meoworld-logs:/usr/src/app/logs/
 
   posts-service:
     build:
       context: ./
       dockerfile: ./services/posts/Dockerfile
     environment:
-      - REDIS_ADDRESS=meoworld-redis
-      - DB_PATH=/database/
-    volumes:
-      - posts-db:/database
+      - MESSAGE_BROKER_ADDRESS=meoworld-message-broker
+      - DATABASE_ADDRESS=posts-database
     deploy:
       mode: replicated
       replicas: 3
     depends_on:
-      - redis
+      - message-broker
       - gateway
+    restart: on-failure:3
+    volumes:
+      - meoworld-logs:/usr/src/app/logs/
 
   comments-service:
     build:
       context: ./
       dockerfile: ./services/comments/Dockerfile
     environment:
-      - REDIS_ADDRESS=meoworld-redis
-      - DB_PATH=/database/
-    volumes:
-      - comments-db:/database
+      - MESSAGE_BROKER_ADDRESS=meoworld-message-broker
+      - DATABASE_ADDRESS=comments-database
     deploy:
       mode: replicated
       replicas: 3
     depends_on:
-      - redis
+      - message-broker
       - gateway
+    restart: on-failure:3
+    volumes:
+      - meoworld-logs:/usr/src/app/logs/
 
-volumes:
-  posts-db:
-    external: true
-  comments-db:
-    external: true
+  posts-database:
+    image: mysql:latest
+    hostname: posts-database
+    volumes:
+      - posts-db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=changeme
+    restart: on-failure:3
+
+  comments-database:
+    image: mysql:latest
+    hostname: comments-database
+    volumes:
+      - comments-db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=changeme
+    restart: on-failure:3
+
+  cache-storage-01:
+    image: redis:latest
+    hostname: cache-storage-01
+    restart: on-failure:3
+
+  cache-storage-02:
+    image: redis:latest
+    hostname: cache-storage-02
+    restart: on-failure:3

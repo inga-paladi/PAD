@@ -10,6 +10,8 @@ COPY services/posts services/posts
 
 WORKDIR /usr/src/services/posts
 
+RUN rm -r -f Migrations/ bin/ obj/ efbundle
+
 RUN dotnet restore
 RUN dotnet tool install --global dotnet-ef
 ENV PATH="${PATH}:/root/.dotnet/tools"
@@ -17,5 +19,5 @@ ENV PATH="${PATH}:/root/.dotnet/tools"
 RUN dotnet build
 RUN dotnet ef migrations add Initialization --no-build
 RUN dotnet ef migrations bundle --no-build
-RUN mkdir -p /database
-RUN ./efbundle --connection "Data Source=/database/posts.db"
+
+ENTRYPOINT [ "/usr/src/services/posts/efbundle", "--connection", "Server=posts-database;Database=posts;Uid=root;Pwd=changeme;" ]

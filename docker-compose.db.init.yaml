@@ -1,0 +1,50 @@
+volumes:
+  posts-db:
+    external: true
+  comments-db:
+    external: true
+
+services:
+  posts-mysql:
+    image: mysql:latest
+    hostname: posts-database
+    volumes:
+      - posts-db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=changeme
+    healthcheck:
+      test:
+        [ "CMD-SHELL", "mysqladmin --password=changeme ping" ]
+      interval: 5s
+      timeout: 2s
+      retries: 120
+
+  posts-migrator:
+    build:
+      context: ./
+      dockerfile: ./services/posts/Dockerfile.init
+    depends_on:
+      posts-mysql:
+        condition: service_healthy
+
+  comments-mysql:
+    image: mysql:latest
+    hostname: comments-database
+    volumes:
+      - comments-db:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=changeme
+    healthcheck:
+      test:
+        [ "CMD-SHELL", "mysqladmin --password=changeme ping" ]
+      interval: 5s
+      timeout: 2s
+      retries: 120
+
+  comments-migrator:
+    build:
+      context: ./
+      dockerfile: ./services/comments/Dockerfile.init
+    depends_on:
+      comments-mysql:
+        condition: service_healthy

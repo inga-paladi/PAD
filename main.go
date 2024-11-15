@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -11,60 +9,52 @@ import (
 	blogpb "meoworld-gateway/gen/blog"
 	commentspb "meoworld-gateway/gen/comments"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/timeout"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"github.com/tmc/grpc-websocket-proxy/wsproxy"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/resolver"
-	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
-	gatewayAddress         string        = ":8080"
-	blogServiceTimeout     time.Duration = time.Second
-	commentsServiceTimeout time.Duration = time.Second
+	gatewayAddress string = ":8080"
 )
 
-var serviceRegistry ServiceRegistry
-var cacheHandler CacheHandler
-var circuitBreaker CircuitBreaker
+var requestForwarder RequestForwarder
+var cacheBalancer CacheBalancer
 
 func init() {
-	serviceRegistry.Start()
-	resolver.Register(&GrpcResolveBuilder{})
-	cacheHandler.Init()
-	circuitBreaker = NewCircuitBreaker()
+	requestForwarder.Start()
+	cacheBalancer.Start()
+	init_logger()
 }
 
 func clean() {
-	serviceRegistry.Close()
+	requestForwarder.Close()
 }
 
 func main() {
 	defer clean()
 
-	RunServer()
+	RunGateway()
 }
 
-func RunServer() {
+func RunGateway() {
 	gatewayMux := runtime.NewServeMux(runtime.WithMiddlewares())
 
 	blogOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithChainUnaryInterceptor(blogCacheUnaryInterceptor, circuitBreakerInterceptor, timeout.UnaryClientInterceptor(blogServiceTimeout)),
-		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"round_robin":{}}]}`),
+		grpc.WithUnaryInterceptor(blogCacheUnaryInterceptor),
 	}
-	blogpb.RegisterBlogHandlerFromEndpoint(context.Background(), gatewayMux, fmt.Sprintf("%s:///%s", resolverScheme, blogServiceName), blogOpts)
+	blogpb.RegisterBlogHandlerFromEndpoint(context.Background(), gatewayMux, requestForwarderListenAddress, blogOpts)
 
 	commentOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithChainUnaryInterceptor(circuitBreakerInterceptor, timeout.UnaryClientInterceptor(commentsServiceTimeout)),
-		grpc.WithDefaultServiceConfig(`{"loadBalancingConfig": [{"round_robin":{}}]}`),
 	}
-	commentspb.RegisterCommentsHandlerFromEndpoint(context.Background(), gatewayMux, fmt.Sprintf("%s:///%s", resolverScheme, commentsServiceName), commentOpts)
+	commentspb.RegisterCommentsHandlerFromEndpoint(context.Background(), gatewayMux, requestForwarderListenAddress, commentOpts)
 
-	log.Printf("Serving http on %v", gatewayAddress)
+	zap.L().Sugar().Infof("Serving gateway on %s", gatewayAddress)
 	http.ListenAndServe(gatewayAddress, wsproxy.WebsocketProxy(gatewayMux))
 }
 
@@ -76,42 +66,25 @@ func blogCacheUnaryInterceptor(ctx context.Context, method string, req, reply in
 		if !ok {
 			break
 		}
-		blogPost, err := cacheHandler.getBlogPost(getPostRequest.Guid)
+		blogPostData, err := cacheBalancer.GetValue(getPostRequest.Guid)
 		if err == nil {
-			log.Printf("Data for post with guid %s was found in cache\n", getPostRequest.Guid)
-			reply.(*blogpb.GetPostResponse).Post = blogPost
+			zap.L().Sugar().Infof("Data for post with guid %s was found in cache\n", getPostRequest.Guid)
+			var blogPost blogpb.BlogPost
+			proto.Unmarshal([]byte(blogPostData), &blogPost)
+			reply.(*blogpb.GetPostResponse).Post = &blogPost
 			return nil
 		}
-		log.Printf("Data for post with guid %s not found in cache\n", getPostRequest.Guid)
+		zap.L().Sugar().Infof("Data for post with guid %s not found in cache\n", getPostRequest.Guid)
 		invokeErr := invoker(ctx, method, req, reply, cc, opts...)
 		if invokeErr == nil {
-			getPostResponse, ok := reply.(*blogpb.GetPostResponse)
-			if ok {
-				cacheHandler.addBlogPost(getPostResponse.Post, 3000*time.Second)
+			if getPostResponse, ok := reply.(*blogpb.GetPostResponse); ok {
+				if postData, err := proto.Marshal(getPostResponse.Post); err == nil {
+					cacheBalancer.AddValue(getPostResponse.Post.Guid, string(postData), 10*time.Minute)
+				}
 			}
 		}
 		return invokeErr
 	}
 
 	return invoker(ctx, method, req, reply, cc, opts...)
-}
-
-func circuitBreakerInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	var invokerResult error
-	for i := 0; i < 3; i++ {
-		invokerResult = invoker(ctx, method, req, reply, cc, opts...)
-		if invokerResult == nil {
-			return nil
-		}
-
-		if grpcStatus, ok := status.FromError(invokerResult); ok {
-			if IsRelevantErrorCode(grpcStatus.Code()) {
-				go circuitBreaker.RegisterError(cc)
-			} else {
-				return invokerResult
-			}
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	return invokerResult
 }

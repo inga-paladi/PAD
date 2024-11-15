@@ -10,6 +10,8 @@ COPY services/comments services/comments
 
 WORKDIR /usr/src/services/comments
 
+RUN rm -r -f Migrations/ bin/ obj/ efbundle
+
 RUN dotnet restore
 RUN dotnet tool install --global dotnet-ef
 ENV PATH="${PATH}:/root/.dotnet/tools"
@@ -17,5 +19,5 @@ ENV PATH="${PATH}:/root/.dotnet/tools"
 RUN dotnet build
 RUN dotnet ef migrations add Initialization --no-build
 RUN dotnet ef migrations bundle --no-build
-RUN mkdir -p /database
-RUN ./efbundle --connection "Data Source=/database/comments.db"
+
+ENTRYPOINT [ "/usr/src/services/comments/efbundle", "--connection", "Server=comments-database;Database=comments;Uid=root;Pwd=changeme;" ]

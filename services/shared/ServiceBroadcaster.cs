@@ -21,7 +21,7 @@ public class ServiceBroadcaster
         const EventType serviceStartedEvent = EventType.ServiceDiscoveryBeacon;
         var serviceStartedAttribute = serviceStartedEvent.GetType().GetMember(serviceStartedEvent.ToString()).Single().GetCustomAttribute<OriginalNameAttribute>();
         _notificationChannel = new RedisChannel(serviceStartedAttribute?.Name.ToString() ?? "", RedisChannel.PatternMode.Literal);
-        _redisAddress = Environment.GetEnvironmentVariable("REDIS_ADDRESS") ?? "localhost";
+        _redisAddress = Environment.GetEnvironmentVariable("MESSAGE_BROKER_ADDRESS") ?? "localhost";
         _serviceDiscoveryBeacon = new ServiceDiscoveryBeacon
         {
             ServiceName = serviceName,

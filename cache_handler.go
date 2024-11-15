@@ -2,41 +2,34 @@ package main
 
 import (
 	"context"
-	"errors"
-	blogpb "meoworld-gateway/gen/blog"
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	"google.golang.org/protobuf/proto"
 )
 
 type CacheHandler struct {
 	ctx         context.Context
 	redisClient *redis.Client
+	address     string
 }
 
-func (handler *CacheHandler) Init() {
-	handler.ctx = context.Background()
-	handler.redisClient = redis.NewClient(&redis.Options{Addr: redisAddress})
-}
-
-func (handler *CacheHandler) addBlogPost(post *blogpb.BlogPost, expiration time.Duration) {
-	if len(post.Guid) == 0 {
-		return
-	}
-	postData, err := proto.Marshal(post)
-	if err == nil {
-		handler.redisClient.Set(handler.ctx, post.Guid, postData, expiration)
+func NewCacheHandler(address string) *CacheHandler {
+	return &CacheHandler{
+		ctx:         context.Background(),
+		redisClient: redis.NewClient(&redis.Options{Addr: address}),
+		address:     address,
 	}
 }
 
-func (handler *CacheHandler) getBlogPost(guid string) (*blogpb.BlogPost, error) {
-	postData, err := handler.redisClient.Get(handler.ctx, guid).Bytes()
-	if err == redis.Nil {
-		return nil, errors.New("NOT_FOUND")
-	}
+func (handler *CacheHandler) GetAddress() string {
+	return handler.address
+}
 
-	blogPost := blogpb.BlogPost{}
-	proto.Unmarshal(postData, &blogPost)
-	return &blogPost, nil
+func (handler *CacheHandler) AddValue(key string, data string, expiration time.Duration) error {
+	_, err := handler.redisClient.Set(handler.ctx, key, data, expiration).Result()
+	return err
+}
+
+func (handler *CacheHandler) GetValue(key string) (string, error) {
+	return handler.redisClient.Get(handler.ctx, key).Result()
 }

@@ -16,6 +16,8 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.1.0 // indirect
 	github.com/redis/go-redis/v9 v9.6.1 // indirect
 	github.com/sirupsen/logrus v1.8.1 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
 )
 
 require (

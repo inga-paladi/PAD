@@ -1,5 +1,3 @@
-# Don't forget to pass the redis address environment variable 'REDIS_ADDRESS'
-
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS dotnet-sdk
 
 WORKDIR /usr/src

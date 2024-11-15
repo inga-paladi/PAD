@@ -8,11 +8,9 @@ namespace comments.Services
         
         protected override void OnConfiguring(DbContextOptionsBuilder options)
         {
-            var dbDir = Environment.GetEnvironmentVariable("DB_PATH");
-            var dbPath = dbDir == null
-                ? System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "comments.db")
-                : System.IO.Path.Combine(dbDir, "comments.db");
-            options.UseSqlite($"Data Source={dbPath}");
+            var dbAddress = Environment.GetEnvironmentVariable("DATABASE_ADDRESS");
+            dbAddress ??= "localhost";
+            options.UseMySQL($"Server={dbAddress};Database=comments;Uid=root;Pwd=changeme;");
         }
     }
     public class Comment

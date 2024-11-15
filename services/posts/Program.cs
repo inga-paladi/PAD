@@ -1,12 +1,12 @@
 using System.Net;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using posts;
 using posts.Services;
 
-var serviceBroadcaster = new ServiceBroadcaster("blog", new DnsEndPoint(GetListeningAddress(), GetListeningPort()));
+var serviceBroadcaster = new ServiceBroadcaster("meoworld.Blog", new DnsEndPoint(GetListeningAddress(), GetListeningPort()));
 serviceBroadcaster.Start();
 
+InitLogger();
 BuildAndRunServer();
 
 void BuildAndRunServer()
@@ -35,6 +35,30 @@ void BuildAndRunServer()
 
     Console.WriteLine("Running on machine: {0}", System.Environment.MachineName);
     app.Run();
+}
+
+void InitLogger()
+{
+    var config = new NLog.Config.LoggingConfiguration();
+
+    var fileTarget = new NLog.Targets.FileTarget("logfile")
+    {
+        FileName = $"logs/posts-service-{System.Environment.MachineName}.log",
+        Layout = "{\"level\":\"${level}\",\"time\":\"${longdate}\",\"msg\":\"${message}\",\"service\":\"posts\", \"hostname\":\"${hostname}\"}"
+    };
+
+    var consoleTarget = new NLog.Targets.ConsoleTarget("logconsole")
+    {
+        Layout = "${level} ${message}"
+    };
+
+    config.AddTarget(fileTarget);
+    config.AddTarget(consoleTarget);
+
+    config.AddRule(NLog.LogLevel.Info, NLog.LogLevel.Fatal, fileTarget);
+    config.AddRule(NLog.LogLevel.Debug, NLog.LogLevel.Fatal, consoleTarget);
+
+    NLog.LogManager.Configuration = config;
 }
 
 string GetListeningAddress()
