@@ -19,8 +19,14 @@ func init_logger() {
 
 	level := zap.NewAtomicLevelAt(zap.InfoLevel)
 	encoderConfig := zap.NewProductionEncoderConfig()
-	encoder := zapcore.NewJSONEncoder(encoderConfig)
-	core := zapcore.NewCore(encoder, zapcore.AddSync(logFileSyncer), level)
+
+	fileEncoder := zapcore.NewJSONEncoder(encoderConfig)
+	consoleEncoder := zapcore.NewConsoleEncoder(encoderConfig)
+
+	fileCore := zapcore.NewCore(fileEncoder, zapcore.AddSync(logFileSyncer), level)
+	consoleCore := zapcore.NewCore(consoleEncoder, zapcore.AddSync(zapcore.Lock(os.Stdout)), level)
+
+	core := zapcore.NewTee(fileCore, consoleCore)
 	zap.ReplaceGlobals(zap.New(core).With(zap.String("service", "gateway")))
 }
 

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"log"
 	"os"
 	"sort"
 	"strings"
@@ -100,7 +99,6 @@ func (balancer *CacheBalancer) AddValue(key string, data string, expiration time
 func (balancer *CacheBalancer) GetValue(key string) (response string, err error) {
 	cacheServer := balancer.getTheServerWhichHolds(key)
 	if cacheServer == nil {
-		log.Printf("Can't receive value with key \"%s\", as there are no available cache servers.", key)
 		zap.L().Sugar().Errorf("Can't receive value with key \"%s\", as there are no available cache servers.", key)
 		return "", errors.New("no instance available")
 	}
@@ -128,7 +126,6 @@ func (balancer *CacheBalancer) getTheServerWhichHolds(key string) (cacheHandler 
 		cacheHandler = balancer.ring[0].realInstance
 	}
 
-	log.Printf("%s is responsible for the key %s, with hash number of %d", cacheHandler.GetAddress(), key, hashedKey)
 	zap.L().Sugar().Infof("%s is responsible for the key %s, with hash number of %d", cacheHandler.GetAddress(), key, hashedKey)
 	return
 }

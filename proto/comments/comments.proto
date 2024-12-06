@@ -1,13 +1,18 @@
 syntax = "proto3";
 
-option go_package = "./meoworld-gateway";
-
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
+import "shared/transaction.proto";
 
-package meoworld;
+package meoworld.v1.comments;
+
+option go_package = "meoworld-gateway/gen/comments";
 
 service Comments {
+  rpc Commit( CommitRequest ) returns ( CommitResponse ) { }
+  rpc Cancel( CancelRequest ) returns ( CancelResponse ) { }
+  rpc GetStatus( GetStatusRequest ) returns ( GetStatusResponse ) { }
+
   rpc AddComment( AddCommentRequest ) returns ( AddCommentResponse ) {
     option (google.api.http) = {
       post: "/v1/comment"
@@ -33,12 +38,34 @@ service Comments {
   }
 }
 
+message CommitRequest {
+  string transaction_id = 1;
+}
+message CommitResponse {
+  // Empty for now
+}
+
+message CancelRequest {
+  string transaction_id = 1;
+}
+message CancelResponse {
+  // Empty for now
+}
+
+message GetStatusRequest {
+  string transaction_id = 1;
+}
+message GetStatusResponse {
+  shared.TransactionContext transaction_context = 1;
+}
+
 message AddCommentRequest {
   string post_guid = 1;
   string content = 2;
   string reply_guid = 3;
 }
 message AddCommentResponse {
+  shared.TransactionContext transaction_context = 2;
   string guid = 1;
 }
 
@@ -54,14 +81,14 @@ message EditCommentRequest {
   string content = 2;
 }
 message EditCommentResponse {
-  // Empty
+  shared.TransactionContext transaction_context = 1;
 }
 
 message DeleteCommentRequest {
   string guid = 1;
 }
 message DeleteCommentResponse {
-  // Empty
+  shared.TransactionContext transaction_context = 1;
 }
 
 // Types

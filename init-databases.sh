@@ -1,22 +1,21 @@
 #!/bin/bash
 
-function check_volume() {
-    VOLUME_NAME=$1
-    [ -n "$(docker volume ls -q --filter "name=$VOLUME_NAME")" ] \
-        && echo "Docker volume '$VOLUME_NAME' already exists" \
-        && echo -e "To remove it, run \"docker volume remove $VOLUME_NAME\" and rerun the script" \
-        && exit 0
-}
+echo "The init steps are in readme.md"
+exit 0
 
-check_volume posts-db
-check_volume comments-db
+present_volumes=$(docker volume ls -q | grep -E "^(posts-db|comments-db-[123])$")
 
-docker volume create posts-db
-docker volume create comments-db
+[ "$present_volumes" ] \
+    && echo "Run \"docker volume remove posts-db comments-db-1 comments-db-2 comments-db-3\" before runnning this script" \
+    && exit 0
+
+for volume in posts-db comments-db-1 comments-db-2 comments-db-3; do
+    docker volume create $volume
+done
 
 echo -e "Docker compose will run and apply migrations.\n\
 Press CTRL + C when you see that comments-migrator \n\
 and posts-migrator exited successfully"
-read -n1 -p "Press any key to continue..."
+read -n1 -s -p "Press any key to continue..."
 
 docker compose -f docker-compose.db.init.yaml up --build

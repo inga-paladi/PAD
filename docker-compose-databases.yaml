@@ -1,0 +1,157 @@
+# https://github.com/wagnerjfr/mysql-group-replication-docker-compose/blob/master/docker-compose.yml
+# https://itnext.io/setting-up-mysql-group-replication-with-docker-compose-7639347545a2
+# https://dev.mysql.com/blog-archive/setting-up-mysql-group-replication-with-mysql-docker-images/
+# https://www.digitalocean.com/community/tutorials/how-to-configure-mysql-group-replication-on-ubuntu-20-04
+
+
+networks:
+  meoworld:
+    external: true
+
+volumes:
+  comments-db-1:
+    # external: true
+  comments-db-2:
+    # external: true
+  comments-db-3:
+    # external: true
+  posts-db:
+    # external: true
+  mysql-router-data:
+
+services:
+
+  mysql-router:
+    image: mysql/mysql-router:8.0
+    container_name: mysql-router
+    hostname: comments-router
+    depends_on:
+      comments-database-1:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: comments-database-1
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: changeme
+      MYSQL_CREATE_ROUTER_USER: 0
+    ports:
+      - "6446:6446" # Read/Write
+      - "6447:6447" # Read-Only
+    networks:
+      - meoworld
+    # volumes:
+      # - mysql-router-data:/tmp/mysqlrouter
+
+  comments-database-1:
+    image: mysql/mysql-server:8.0
+    container_name: comments-database-1
+    hostname: comments-database-1
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=changeme
+    volumes:
+      - comments-db-1:/var/lib/mysql
+      - ./database-replication/replication-user-setup.sql:/docker-entrypoint-initdb.d/setup.sql
+      - ./database-replication/my.cnf:/etc/my.cnf
+    command: ["mysqld",
+      # The first ever start should leave it to off. If you need auto replication start, uncomment
+      "--loose-group-replication-start-on-boot=OFF",
+
+      "--server-id=1",
+      "--bind-address=comments-database-1",
+      "--report-host=comments-database-1",
+      "--loose-group-replication-local-address=comments-database-1:33061",
+      # "--loose-group-replication-bootstrap-group=ON",
+      "--loose-group-replication-group-seeds=comments-database-1:33061,comments-database-2:33061,comments-database-3:33061",
+      "--relay-log=comments-database-1-relay-bin", # asta o tin, imi recomanda mysql chiar
+      ]
+    networks:
+      - meoworld
+    healthcheck:
+      test: "mysql -u root -p$${MYSQL_ROOT_PASSWORD} -e 'SELECT 1'"
+      interval: 2s
+      retries: 20
+
+  comments-database-2:
+    image: mysql/mysql-server:8.0
+    container_name: comments-database-2
+    hostname: comments-database-2
+    restart: unless-stopped
+    # depends_on:
+    #   comments-database-1:
+    #     condition: service_healthy
+    environment:
+      - MYSQL_ROOT_PASSWORD=changeme
+    volumes:
+      - comments-db-2:/var/lib/mysql
+      - ./database-replication/replication-user-setup.sql:/docker-entrypoint-initdb.d/setup.sql
+      - ./database-replication/my.cnf:/etc/my.cnf
+    command: ["mysqld",
+      # The first ever start should leave it to off. If you need auto replication start, uncomment
+      "--loose-group-replication-start-on-boot=OFF",
+
+      "--server-id=2",
+      "--bind-address=comments-database-2",
+      "--report-host=comments-database-2",
+      "--loose-group-replication-local-address=comments-database-2:33061",
+      "--loose-group-replication-group-seeds=comments-database-1:33061,comments-database-2:33061,comments-database-3:33061",
+      "--relay-log=comments-database-2-relay-bin",
+      ]
+    networks:
+      - meoworld
+    healthcheck:
+      test: "mysql -u root -p$${MYSQL_ROOT_PASSWORD} -e 'SELECT 1'"
+      interval: 2s
+      retries: 20
+
+  comments-database-3:
+    image: mysql/mysql-server:8.0
+    container_name: comments-database-3
+    hostname: comments-database-3
+    restart: unless-stopped
+    # depends_on:
+    #   comments-database-1:
+    #     condition: service_healthy
+    environment:
+      - MYSQL_ROOT_PASSWORD=changeme
+    volumes:
+      - comments-db-3:/var/lib/mysql
+      - ./database-replication/replication-user-setup.sql:/docker-entrypoint-initdb.d/setup.sql
+      - ./database-replication/my.cnf:/etc/my.cnf
+    command: ["mysqld",
+      # The first ever start should leave it to off. If you need auto replication start, uncomment
+      "--loose-group-replication-start-on-boot=OFF",
+
+      "--server-id=3",
+      "--bind-address=comments-database-3",
+      "--report-host=comments-database-3",
+      "--loose-group-replication-local-address=comments-database-3:33061",
+      "--loose-group-replication-group-seeds=comments-database-1:33061,comments-database-2:33061,comments-database-3:33061",
+      "--relay-log=comments-database-3-relay-bin",
+      ]
+    networks:
+      - meoworld
+    healthcheck:
+      test: "mysql -u root -p$${MYSQL_ROOT_PASSWORD} -e 'SELECT 1'"
+      interval: 2s
+      retries: 20
+
+  posts-database:
+    image: mysql/mysql-server:8.0
+    container_name: posts-database
+    hostname: posts-database
+    restart: unless-stopped
+    volumes:
+      - posts-db:/var/lib/mysql
+      - ./database-replication/db-user-setup.sql:/docker-entrypoint-initdb.d/setup.sql
+    environment:
+      - MYSQL_ROOT_PASSWORD=changeme
+    ports:
+      - 3336:3306 # for debug
+    networks:
+      - meoworld
+    healthcheck:
+      test: "mysql -uroot -p$${MYSQL_ROOT_PASSWORD} -e 'SELECT 1'"
+      interval: 5s
+      timeout: 2s
+      retries: 120

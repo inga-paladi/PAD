@@ -1,8 +1,8 @@
+networks:
+  meoworld:
+    external: true
+
 volumes:
-  posts-db:
-    external: true
-  comments-db:
-    external: true
   meoworld-logs:
     external: true
 
@@ -11,6 +11,8 @@ services:
     image: redis:latest
     hostname: meoworld-message-broker
     restart: on-failure:3
+    networks:
+      - meoworld
 
   gateway:
     build:
@@ -26,6 +28,8 @@ services:
     restart: on-failure:3
     volumes:
       - meoworld-logs:/usr/src/app/logs/
+    networks:
+    - meoworld
 
   posts-service:
     build:
@@ -43,6 +47,8 @@ services:
     restart: on-failure:3
     volumes:
       - meoworld-logs:/usr/src/app/logs/
+    networks:
+    - meoworld
 
   comments-service:
     build:
@@ -50,7 +56,8 @@ services:
       dockerfile: ./services/comments/Dockerfile
     environment:
       - MESSAGE_BROKER_ADDRESS=meoworld-message-broker
-      - DATABASE_ADDRESS=comments-database
+      - DATABASE_ADDRESS=mysql-router
+      - DATABASE_PORT=6446 # read-write port
     deploy:
       mode: replicated
       replicas: 3
@@ -60,31 +67,19 @@ services:
     restart: on-failure:3
     volumes:
       - meoworld-logs:/usr/src/app/logs/
-
-  posts-database:
-    image: mysql:latest
-    hostname: posts-database
-    volumes:
-      - posts-db:/var/lib/mysql
-    environment:
-      - MYSQL_ROOT_PASSWORD=changeme
-    restart: on-failure:3
-
-  comments-database:
-    image: mysql:latest
-    hostname: comments-database
-    volumes:
-      - comments-db:/var/lib/mysql
-    environment:
-      - MYSQL_ROOT_PASSWORD=changeme
-    restart: on-failure:3
+    networks:
+    - meoworld
 
   cache-storage-01:
     image: redis:latest
     hostname: cache-storage-01
     restart: on-failure:3
+    networks:
+    - meoworld
 
   cache-storage-02:
     image: redis:latest
     hostname: cache-storage-02
     restart: on-failure:3
+    networks:
+    - meoworld

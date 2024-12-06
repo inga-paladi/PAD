@@ -30,18 +30,17 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf ProtoRoot="proto" Include="proto/**/*.proto" GrpcServices="Server" AdditionalImportDirs="$(PkgGoogle_Api_CommonProtos)/content/protos"/>
-    <Protobuf Include="..\..\proto\comments\comments.proto">
-      <Link>Protos/comments/comments.proto</Link>
-    </Protobuf>
-    <Protobuf Include="..\..\proto\mq\types.proto">
-      <Link>Protos/mq/types.proto</Link>
-    </Protobuf>
+    <Protobuf Include="..\..\proto\comments\comments.proto" Link="Protos\comments\comments.proto" GrpcServices="Server" AdditionalImportDirs="$(PkgGoogle_Api_CommonProtos)\content\protos;..\..\proto"/>
+    <Protobuf Include="..\..\proto\mq\types.proto" Link="Protos\mq\types.proto" />
+    <Protobuf Include="..\..\proto\shared\transaction.proto" Link="Protos\shared\transaction.proto" />
   </ItemGroup>
 
   <ItemGroup>
     <Compile Include="..\shared\ServiceBroadcaster.cs">
       <Link>ServiceBroadcaster.cs</Link>
+    </Compile>
+    <Compile Include="..\shared\TransactionManager.cs">
+      <Link>TransactionManager.cs</Link>
     </Compile>
   </ItemGroup>
 

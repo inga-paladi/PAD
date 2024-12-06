@@ -20,6 +20,7 @@ COPY go.mod \
      circuit_breaker.go \
      logger.go \
      cache_balancer.go \
+     saga_orchestrator.go \
      ./
 
 # Download the dependencies

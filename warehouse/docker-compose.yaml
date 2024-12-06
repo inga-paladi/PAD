@@ -1,0 +1,46 @@
+networks:
+  meoworld:
+    external: true
+
+volumes:
+  warehouse-data:
+
+services:
+  warehouse:
+    image: mysql:latest
+    container_name: warehouse
+    hostname: warehouse
+    environment:
+      - MYSQL_ROOT_PASSWORD=changeme
+    volumes:
+      - warehouse-data:/var/lib/mysql
+      - ./warehouse-init.sql:/docker-entrypoint-initdb.d/setup.sql
+    networks:
+      - meoworld
+    ports:
+      - 33306:3306
+    healthcheck:
+      test: "mysql -u root -p$${MYSQL_ROOT_PASSWORD} -e 'SELECT 1'"
+      interval: 2s
+      retries: 20
+
+  etl-service:
+    build: .
+    container_name: etl-service
+    hostname: etl-service
+    environment:
+      - WAREHOUSE_ADDRESS=warehouse
+      - WAREHOUSE_PORT=3306
+      - COMMENTS_DATABASE_ADDRESS=comments-router
+      - COMMENTS_DATABASE_PORT=6446
+      - POSTS_DATABASE_ADDRESS=posts-database
+      - POSTS_DATABASE_PORT=3306
+      - SQLALCHEMY_SILENCE_UBER_WARNING=1
+    volumes:
+      - ./warehouse-etl.py:/run.py
+    networks:
+      - meoworld
+    restart: on-failure
+    depends_on:
+      warehouse:
+        condition: service_healthy

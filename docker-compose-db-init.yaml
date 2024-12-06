@@ -1,0 +1,37 @@
+networks:
+  meoworld:
+    external: true
+
+services:
+  posts-migrator:
+    build:
+      context: ./
+      dockerfile: ./services/posts/Dockerfile.init
+    environment:
+      - POSTS_DATABASE=posts-database
+      - DB_USERNAME=root
+      - DB_PASSWORD=changeme
+    networks:
+      - meoworld
+
+  comments-migrator:
+    build:
+      context: ./
+      dockerfile: ./services/comments/Dockerfile.init
+    environment:
+      - COMMENTS_DATABASE=comments-database-1
+      - DB_USERNAME=root
+      - DB_PASSWORD=changeme
+    networks:
+      - meoworld
+
+  comments-db-cluster-creator:
+    image: mysql/mysql-server:8.0
+    environment:
+      - DATABASE_HOST=comments-database-1
+    volumes:
+      - ./database-replication/cluster-creator.sh:/usr/scripts/cluster-creator.sh
+    networks:
+      - meoworld
+    command: >
+      bash /usr/scripts/cluster-creator.sh

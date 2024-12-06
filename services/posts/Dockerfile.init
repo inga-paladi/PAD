@@ -20,4 +20,9 @@ RUN dotnet build
 RUN dotnet ef migrations add Initialization --no-build
 RUN dotnet ef migrations bundle --no-build
 
-ENTRYPOINT [ "/usr/src/services/posts/efbundle", "--connection", "Server=posts-database;Database=posts;Uid=root;Pwd=changeme;" ]
+RUN echo './efbundle --connection "Server=${POSTS_DATABASE};Database=posts;Uid=${DB_USERNAME};Pwd=${DB_PASSWORD};"' > entrypoint.sh
+RUN chmod +x entrypoint.sh
+
+ENTRYPOINT [ "bash", "/usr/src/services/posts/entrypoint.sh" ]
+
+# ENTRYPOINT [ "/usr/src/services/posts/efbundle", "--connection", "Server=posts-database;Database=posts;Uid=root;Pwd=changeme;" ]

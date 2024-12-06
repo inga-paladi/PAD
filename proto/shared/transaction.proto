@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package meoworld.v1.shared;
+
+option go_package = "meoworld-gateway/gen/shared";
+
+message TransactionContext {
+  string transaction_id = 1;
+  TransactionStatus status = 2;
+}
+
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNSPECIFIED = 0;
+  TRANSACTION_STATUS_SUCCESS = 1;
+  TRANSACTION_STATUS_FAILED = 2;
+  TRANSACTION_STATUS_CANCELED = 3;
+  TRANSACTION_STATUS_PENDING = 4;
+  TRANSACTION_STATUS_IN_PROGRESS = 5;
+  TRANSACTION_STATUS_INITIATED = 6;
+}

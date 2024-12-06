@@ -4,77 +4,66 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	blogpb "meoworld-gateway/gen/blog"
-	commentspb "meoworld-gateway/gen/comments"
 	mqpb "meoworld-gateway/gen/mq"
-	"net"
 	"os"
-	"reflect"
 	"regexp"
 	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 )
 
 const (
-	requestForwarderListenAddress string = ":8081"
-	maxRedirects                  uint8  = 2
+	maxRedirects uint8 = 2
 )
 
 var messageBrokerAddress = fmt.Sprintf("%s:%s", os.Getenv("MESSAGE_BROKER_ADDRESS"), "6379")
 
 type RequestForwarder struct {
-	server                 *grpc.Server
 	data                   map[string]*serviceInstances
 	cancelServiceDiscovery context.CancelFunc
 }
 
 type serviceInstances struct {
 	availableServices []*CircuitBreaker
+	sagaInstances     map[string]*CircuitBreaker
 	nextServiceOrder  uint8
 	mutex             sync.Mutex
 }
 
 // Start ------------------------------------------
 func (forwarder *RequestForwarder) Start() {
-	forwarder.server = grpc.NewServer(
-		grpc.UnaryInterceptor(serverInterceptor),
-		grpc.Creds(insecure.NewCredentials()),
-	)
-
-	blogpb.RegisterBlogServer(forwarder.server, blogpb.UnimplementedBlogServer{})
-	commentspb.RegisterCommentsServer(forwarder.server, commentspb.UnimplementedCommentsServer{})
-
-	grpcServerListener, err := net.Listen("tcp", requestForwarderListenAddress)
-	if err != nil {
-		// panic
-		return
-	}
-
-	go forwarder.server.Serve(grpcServerListener)
-
 	forwarder.data = make(map[string]*serviceInstances)
 	forwarder.listenForNewServices()
 }
 
 // Close --------------------------------------------
 func (forwarder *RequestForwarder) Close() {
-	forwarder.server.GracefulStop()
 	forwarder.cancelServiceDiscovery()
 }
 
 // Forward --------------------------------------------
 func (forwarder *RequestForwarder) Forward(ctx context.Context, req interface{}, fullMethod string, response interface{}) (err error) {
 	serviceName := getServiceName(fullMethod)
+	md, _ := metadata.FromOutgoingContext(ctx)
+	sagaTransactionId := md.Get("Saga-Transaction-Id")
+
 	for attempt := 1; attempt <= int(maxRedirects); {
-		serviceInstance := forwarder.getNextServiceInstance(serviceName)
+		serviceInstance := func() *CircuitBreaker {
+			if len(sagaTransactionId) != 0 {
+				sagaInstance, ok := forwarder.data[serviceName].sagaInstances[sagaTransactionId[0]]
+				if ok {
+					return sagaInstance
+				}
+			}
+
+			return forwarder.getNextServiceInstance(serviceName)
+		}()
 		if serviceInstance == nil {
 			zap.L().Sugar().Errorf("No %s instance available to handle the request", serviceName)
 			return status.Error(codes.Unavailable, "No available instances")
@@ -82,6 +71,7 @@ func (forwarder *RequestForwarder) Forward(ctx context.Context, req interface{},
 
 		zap.L().Sugar().Infof("Request for %s is forwarded to %s, attempt %d", fullMethod, serviceInstance.GetAddress(), attempt)
 		err = serviceInstance.HandleRequest(ctx, fullMethod, req, response)
+
 		if response == HandleRequest_Error_CircuitDead {
 			// Remove it and try the next one
 			continue
@@ -94,6 +84,9 @@ func (forwarder *RequestForwarder) Forward(ctx context.Context, req interface{},
 
 		statusCode, _ := status.FromError(err)
 		if statusCode.Code() == codes.OK {
+			if len(sagaTransactionId) != 0 {
+				forwarder.data[serviceName].sagaInstances[sagaTransactionId[0]] = serviceInstance
+			}
 			return
 		}
 
@@ -107,16 +100,6 @@ func (forwarder *RequestForwarder) Forward(ctx context.Context, req interface{},
 	}
 
 	// Return the last response and error
-	return
-}
-
-func serverInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (response interface{}, err error) {
-	responseType, _ := handler(ctx, req)
-	response = reflect.New(reflect.TypeOf(responseType).Elem()).Interface()
-
-	zap.L().Sugar().Infof("Received client request: %s", info.FullMethod)
-
-	err = requestForwarder.Forward(ctx, req, info.FullMethod, response)
 	return
 }
 
@@ -190,7 +173,7 @@ func (forwarder *RequestForwarder) newServiceStarted(serviceName string, serverA
 	newServiceAddress := fmt.Sprintf("%s:%d", serverAddress, serverPort)
 
 	if _, exists := forwarder.data[serviceName]; !exists {
-		forwarder.data[serviceName] = &serviceInstances{}
+		forwarder.data[serviceName] = &serviceInstances{sagaInstances: make(map[string]*CircuitBreaker)}
 	}
 
 	// Check for duplicates

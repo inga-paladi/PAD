@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"net"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -18,44 +20,80 @@ import (
 )
 
 const (
-	gatewayAddress string = ":8080"
+	interceptorServerListenAddress string = ":8081"
+	gatewayAddress                 string = ":8080"
 )
 
+var interceptorServer *grpc.Server
 var requestForwarder RequestForwarder
 var cacheBalancer CacheBalancer
+var sagaOrchestrator SagaOrchestrator = NewSagaOrchestrator(&requestForwarder)
 
 func init() {
-	requestForwarder.Start()
-	cacheBalancer.Start()
 	init_logger()
+	cacheBalancer.Start()
+	requestForwarder.Start()
 }
 
 func clean() {
+	interceptorServer.GracefulStop()
 	requestForwarder.Close()
 }
 
 func main() {
 	defer clean()
 
-	RunGateway()
+	RunInterceptorServer()
+	RunMultiplexer()
 }
 
-func RunGateway() {
+func RunInterceptorServer() {
+	interceptorServer = grpc.NewServer(
+		grpc.UnaryInterceptor(serverInterceptor),
+		grpc.Creds(insecure.NewCredentials()),
+	)
+
+	blogpb.RegisterBlogServer(interceptorServer, blogpb.UnimplementedBlogServer{})
+	commentspb.RegisterCommentsServer(interceptorServer, commentspb.UnimplementedCommentsServer{})
+
+	grpcServerListener, err := net.Listen("tcp", interceptorServerListenAddress)
+	if err != nil {
+		// panic
+		return
+	}
+
+	go interceptorServer.Serve(grpcServerListener)
+}
+
+func RunMultiplexer() {
 	gatewayMux := runtime.NewServeMux(runtime.WithMiddlewares())
 
 	blogOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(blogCacheUnaryInterceptor),
 	}
-	blogpb.RegisterBlogHandlerFromEndpoint(context.Background(), gatewayMux, requestForwarderListenAddress, blogOpts)
+	blogpb.RegisterBlogHandlerFromEndpoint(context.Background(), gatewayMux, interceptorServerListenAddress, blogOpts)
 
 	commentOpts := []grpc.DialOption{
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 	}
-	commentspb.RegisterCommentsHandlerFromEndpoint(context.Background(), gatewayMux, requestForwarderListenAddress, commentOpts)
+	commentspb.RegisterCommentsHandlerFromEndpoint(context.Background(), gatewayMux, interceptorServerListenAddress, commentOpts)
 
 	zap.L().Sugar().Infof("Serving gateway on %s", gatewayAddress)
-	http.ListenAndServe(gatewayAddress, wsproxy.WebsocketProxy(gatewayMux))
+	err := http.ListenAndServe(gatewayAddress, wsproxy.WebsocketProxy(gatewayMux))
+	if err != nil {
+		zap.L().Sugar().Infof("%s", err.Error())
+	}
+}
+
+func serverInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (response interface{}, err error) {
+	responseType, _ := handler(ctx, req)
+	response = reflect.New(reflect.TypeOf(responseType).Elem()).Interface()
+
+	zap.L().Sugar().Infof("Received client request: %s", info.FullMethod)
+
+	err = sagaOrchestrator.Handle(ctx, req, info.FullMethod, response)
+	return
 }
 
 func blogCacheUnaryInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {

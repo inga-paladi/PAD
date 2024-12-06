@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
 	"sync"
 	"time"
 
@@ -31,10 +30,10 @@ const (
 )
 
 const (
-	thresholdRedirectCount         uint8         = 2
-	thresholdRedirectsTimeInterval time.Duration = time.Minute
+	thresholdRedirectCount         uint8         = 10
+	thresholdRedirectsTimeInterval time.Duration = time.Second * 10
 	thresholdForDeadState          uint8         = 6 // the number of half-closed -> closed state change to mark it dead.
-	openStateTimeout               time.Duration = time.Second * 30
+	openStateTimeout               time.Duration = time.Second * 10
 	retriesPerRpc                  uint8         = 3
 )
 
@@ -77,16 +76,15 @@ func (circuitBreaker *CircuitBreaker) HandleRequest(ctx context.Context, fullMet
 	}
 	if currentState == CircuitBreaker_State_Open {
 		response = HandleRequest_Error_CircuitOpen
-		log.Printf("Circuit is open for %s", circuitBreaker.GetAddress())
 		return errors.New("circuit is open, try again later")
 	}
 
 	for attempt := 1; attempt <= int(retriesPerRpc); attempt++ {
 		zap.L().Sugar().Infof("Invoke %s for %s, attempt %d", fullMethod, circuitBreaker.GetAddress(), attempt)
-		timeoutCtx, cancel := context.WithTimeout(ctx, time.Second)
-		defer cancel()
+		// timeoutCtx, cancel := context.WithTimeout(ctx, time.Minute)
+		// defer cancel()
 
-		err = circuitBreaker.conn.Invoke(timeoutCtx, fullMethod, req, response)
+		err = circuitBreaker.conn.Invoke(ctx, fullMethod, req, response)
 		statusCode, _ := status.FromError(err)
 		if statusCode.Code() == codes.OK {
 			circuitBreaker.closeCircuit()
@@ -147,11 +145,9 @@ func (circuitBreaker *CircuitBreaker) openCircuitUnsafe() {
 	}
 
 	circuitBreaker.state = CircuitBreaker_State_Open
-	log.Printf("Open circuit for %s", circuitBreaker.GetAddress())
 	zap.L().Sugar().Errorf("Open circuit for %s", circuitBreaker.GetAddress())
 
 	circuitBreaker.timer = time.AfterFunc(openStateTimeout, func() {
-		log.Printf("Half close circuit for %s", circuitBreaker.GetAddress())
 		zap.L().Sugar().Infof("Half close circuit for %s", circuitBreaker.GetAddress())
 
 		circuitBreaker.mutex.Lock()
@@ -169,7 +165,6 @@ func (circuitBreaker *CircuitBreaker) closeCircuit() {
 	if circuitBreaker.state != CircuitBreaker_State_Closed {
 		circuitBreaker.state = CircuitBreaker_State_Closed
 		circuitBreaker.halfClosedToOpenTransitions = 0
-		log.Printf("Close circuit for %s", circuitBreaker.GetAddress())
 		zap.L().Sugar().Infof("Close circuit for %s", circuitBreaker.GetAddress())
 	}
 }

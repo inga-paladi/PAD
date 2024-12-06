@@ -3,7 +3,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using posts;
 using posts.Services;
 
-var serviceBroadcaster = new ServiceBroadcaster("meoworld.Blog", new DnsEndPoint(GetListeningAddress(), GetListeningPort()));
+var serviceBroadcaster = new ServiceBroadcaster("meoworld.v1.blog.Blog", new DnsEndPoint(GetListeningAddress(), GetListeningPort()));
 serviceBroadcaster.Start();
 
 InitLogger();
@@ -63,7 +63,9 @@ void InitLogger()
 
 string GetListeningAddress()
 {
-    return System.Environment.MachineName;
+    return Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development"
+        ? "localhost"
+        : Environment.MachineName;
 }
 
 int GetListeningPort()

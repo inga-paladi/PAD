@@ -20,4 +20,7 @@ RUN dotnet build
 RUN dotnet ef migrations add Initialization --no-build
 RUN dotnet ef migrations bundle --no-build
 
-ENTRYPOINT [ "/usr/src/services/comments/efbundle", "--connection", "Server=comments-database;Database=comments;Uid=root;Pwd=changeme;" ]
+RUN echo './efbundle --connection "Server=${COMMENTS_DATABASE};Database=comments;Uid=${DB_USERNAME};Pwd=${DB_PASSWORD};"' > entrypoint.sh
+RUN chmod +x entrypoint.sh
+
+ENTRYPOINT [ "bash", "/usr/src/services/comments/entrypoint.sh" ]

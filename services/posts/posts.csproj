@@ -8,7 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Adapter" Version="1.1.1301.1418" />
     <PackageReference Include="Google.Api.CommonProtos" Version="2.15.0" GeneratePathProperty="true" />
     <PackageReference Include="Google.Protobuf" Version="3.28.1" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.57.0" />
@@ -36,17 +35,12 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf ProtoRoot="proto" Include="proto/**/*.proto" GrpcServices="Server" AdditionalImportDirs="$(PkgGoogle_Api_CommonProtos)/content/protos" />
-    <Protobuf Include="..\..\proto\blog\blog.proto">
-      <Link>Protos/blog/blog.proto</Link>
-    </Protobuf>
-    <Protobuf Include="..\..\proto\mq\types.proto">
-      <Link>Protos/mq/types.proto</Link>
-    </Protobuf>
+    <Protobuf Include="..\..\proto\blog\blog.proto" GrpcServices="Server" AdditionalImportDirs="$(PkgGoogle_Api_CommonProtos)/content/protos;..\..\proto\" Link="Protos\blog\blog.proto" />
+    <Protobuf Include="..\..\proto\mq\types.proto" Link="Protos\mq\types.proto" />
+    <Protobuf Include="..\..\proto\shared\transaction.proto" Link="Protos\shared\transaction.proto" />
   </ItemGroup>
 
   <ItemGroup>
@@ -54,6 +48,9 @@
       <Link>ServiceBroadcaster.cs</Link>
     </Compile>
     <Compile Remove="PostsServiceTests\**" />
+    <Compile Include="..\shared\TransactionManager.cs">
+      <Link>Services\TransactionManager.cs</Link>
+    </Compile>
   </ItemGroup>
 
   <ItemGroup>

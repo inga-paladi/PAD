@@ -3,7 +3,7 @@ using comments;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using comments.Services;
 
-var serviceBroadcaster = new ServiceBroadcaster("meoworld.Comments", new DnsEndPoint(GetListeningAddress(), GetListeningPort()));
+var serviceBroadcaster = new ServiceBroadcaster("meoworld.v1.comments.Comments", new DnsEndPoint(GetListeningAddress(), GetListeningPort()));
 serviceBroadcaster.Start();
 
 InitLogger();
@@ -63,10 +63,14 @@ void InitLogger()
 
 string GetListeningAddress()
 {
-    return System.Environment.MachineName;
+    return Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development"
+        ? "localhost"
+        : Environment.MachineName;
 }
 
 int GetListeningPort()
 {
-    return 5001;
+    return Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development"
+        ? 5002
+        : 5001;
 }
